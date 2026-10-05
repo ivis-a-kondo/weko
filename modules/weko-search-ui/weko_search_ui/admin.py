@@ -544,22 +544,25 @@ class ItemImportView(BaseView):
             for task_item in data.get("tasks"):
                 task_id = task_item.get("task_id")
                 task = import_item.AsyncResult(task_id)
+                task_status = task.status
+                task_result = task.result
+                task_finished = task_status in ("SUCCESS", "FAILURE")
                 start_date = (
-                    task.result.get("start_date")
-                    if task and isinstance(task.result, dict)
+                    task_result.get("start_date")
+                    if isinstance(task_result, dict)
                     else ""
                 )
                 end_date = (
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    if task.successful() or task.failed()
+                    if task_finished
                     else ""
                 )
                 item_id = task_item.get("item_id", None)
-                if not item_id and task.result:
-                    item_id = task.result.get("recid", None)
+                if not item_id and task_result:
+                    item_id = task_result.get("recid", None)
                 result.append({
-                    "task_status": task.status,
-                    "task_result": task.result,
+                    "task_status": task_status,
+                    "task_result": task_result,
                     "start_date": start_date,
                     "end_date": task_item.get("end_date") or end_date,
                     "task_id": task_id,
@@ -567,14 +570,14 @@ class ItemImportView(BaseView):
                 })
                 status = (
                     "doing"
-                    if not (task.successful() or task.failed()) or status == "doing"
+                    if not task_finished or status == "doing"
                     else "done"
                 )
-                if task and isinstance(task.result, dict) \
-                        and task.result.get("success"):
+                if isinstance(task_result, dict) \
+                        and task_result.get("success"):
                     success_count += 1
-                if task and isinstance(task.result, dict) \
-                        and "error_id" in task.result:
+                if isinstance(task_result, dict) \
+                        and "error_id" in task_result:
                     fail_count += 1
             response_object = {
                 "status": status,
@@ -582,6 +585,14 @@ class ItemImportView(BaseView):
                 "success_count": success_count,
                 "fail_count": fail_count
             }
+            current_app.logger.info(
+                "check_status summary: task_count=%s status=%s "
+                "success_count=%s fail_count=%s",
+                len(data.get("tasks")),
+                status,
+                success_count,
+                fail_count,
+            )
         else:
             response_object = {
                 "status": "error",

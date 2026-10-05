@@ -369,6 +369,7 @@ class MainLayout extends React.Component {
       }),
       contentType: "application/json; charset=utf-8",
       dataType: "json",
+      timeout: 60000,
     })
       .done((res) => {
 
@@ -385,7 +386,7 @@ class MainLayout extends React.Component {
         }
         setTimeout(function () {
           that.getStatus();
-        }, 1000);
+        }, 10000);
       })
       .fail((err) => {
         console.log(err);

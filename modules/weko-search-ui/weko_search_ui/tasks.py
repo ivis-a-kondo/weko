@@ -25,11 +25,12 @@ import json
 import os
 import pickle
 import shutil
+import time
 from datetime import datetime, timedelta
 import sys
 import traceback
 
-from celery import shared_task
+from celery import current_task, shared_task
 from celery.result import AsyncResult
 from flask import current_app
 from flask_babel import gettext as _
@@ -147,16 +148,40 @@ def check_rocrate_import_items_task(
     return result
 
 
+@shared_task
+def diagnostic_task(i):
+    print(f"called diagnostic_task:{i}")
+    time.sleep(30)
+    return 1
+
+
 @shared_task(ignore_results=False)
 def import_item(item, request_info):
     """Import Item."""
     start_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    task_id = current_task.request.id if current_task else "unknown"
+    current_app.logger.info(
+        "import_item started: task_id=%s item_id=%s",
+        task_id,
+        item.get("id"),
+    )
     try:
+        time.sleep(180)
         result = import_items_to_system(item, request_info) or dict()
         result["start_date"] = start_date
+        current_app.logger.info(
+            "import_item succeeded: task_id=%s item_id=%s",
+            task_id,
+            item.get("id"),
+        )
         return result
     except Exception as ex:
         current_app.logger.error(traceback.format_exc())
+        current_app.logger.error(
+            "import_item failed: task_id=%s item_id=%s",
+            task_id,
+            item.get("id"),
+        )
         return {"success": False, "start_date": start_date, "error_id": 'Internal server error'}
 
 
